@@ -2,10 +2,12 @@
 
 *Probably the best one among all GitHub repos.*
 
+![User Control Demo](example.png)
+
 ## Highlights
 
-- UR5 arm with end-effector 6D IK (Position [X Y Z] + Orientation [R P Y])
-- Enhanced Robotiq-85 / 140 gripper, with precise position control and an experimental torque control
+- UR5 arm with end-effector 6D IK (Position [X Y Z] and Orientation [R P Y])
+- Enhanced Robotiq-85 / 140 gripper, with precise position control and experimental torque control
 - Built-in YCB models loader (and obj models after decomposition)
 - Gym-styled API, making it suitable for Reinforcement Learning in the field of push-and-grasp
 - A heuristic grasping demo
