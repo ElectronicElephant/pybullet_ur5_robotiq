@@ -2,6 +2,8 @@
 
 *Probably the best one among all GitHub repos.*
 
+This repo is under active development. Issues / PRs are welcomed.
+
 ![User Control Demo](example.png)
 
 ## Highlights
