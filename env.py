@@ -6,7 +6,7 @@ import numpy as np
 import pybullet as p
 import pybullet_data
 
-from utilities import Models, setup_sisbot, setup_sisbot_force
+from utilities import Models, setup_sisbot, setup_sisbot_force, Camera
 
 
 class FailToReachTargetError(RuntimeError):
@@ -14,15 +14,6 @@ class FailToReachTargetError(RuntimeError):
 
 
 class ClutteredPushGrasp:
-    CAM_POS_X = 0
-    CAM_POS_Y = -0.5
-    CAM_POS_Z = 1.5
-    CAM_NEAR = 0.1
-    CAM_FAR = 5
-    CAM_WIDTH = 720
-    CAM_HEIGHT = 720
-    CAM_FOV = 40
-
     OBJECT_INIT_HEIGHT = 1.05
     GRIPPER_MOVING_HEIGHT = 1.15
     GRIPPER_GRASPED_LIFT_HEIGHT = 1.2
@@ -40,9 +31,10 @@ class ClutteredPushGrasp:
 
     SIMULATION_STEP_DELAY = 1 / 240.
 
-    def __init__(self, models: Models, vis=False, num_objs=3, gripper_type='85') -> None:
+    def __init__(self, models: Models, camera: Camera, vis=False, num_objs=3, gripper_type='85') -> None:
         self.vis = vis
         self.num_objs = num_objs
+        self.camera = camera
 
         if gripper_type not in ('85', '140'):
             raise NotImplementedError('Gripper %s not implemented.' % gripper_type)
@@ -178,39 +170,6 @@ class ClutteredPushGrasp:
         for _ in range(100):
             self.step_simulation()
 
-    def rgbd_2_world(self, w, h, d):
-        aspect = self.CAM_WIDTH / self.CAM_HEIGHT
-        view_matrix = np.array(p.computeViewMatrix([self.CAM_POS_X, self.CAM_POS_Y, self.CAM_POS_Z],
-                                                   [self.CAM_POS_X - 0.001, self.CAM_POS_Y, 0],
-                                                   [-1, 0, 0])).reshape((4, 4), order='F')
-        projection_matrix = np.array(p.computeProjectionMatrixFOV(self.CAM_FOV, aspect,
-                                                                  self.CAM_NEAR, self.CAM_FAR)).reshape((4, 4),
-                                                                                                        order='F')
-        tran_pix_world = np.linalg.inv(projection_matrix @ view_matrix)
-
-        x = (2 * w - self.CAM_WIDTH) / self.CAM_WIDTH
-        y = -(2 * h - self.CAM_HEIGHT) / self.CAM_HEIGHT
-        z = 2 * d - 1
-        pix_pos = np.array((x, y, z, 1))
-        position = tran_pix_world @ pix_pos
-        position /= position[3]
-
-        return position[:3]
-
-    def update_camera(self):
-        # define camera image parameter
-        aspect = self.CAM_WIDTH / self.CAM_HEIGHT
-        view_matrix = p.computeViewMatrix([self.CAM_POS_X, self.CAM_POS_Y, self.CAM_POS_Z],
-                                          [self.CAM_POS_X - 0.001, self.CAM_POS_Y, 0],
-                                          [-1, 0, 0])
-        projection_matrix = p.computeProjectionMatrixFOV(self.CAM_FOV, aspect, self.CAM_NEAR, self.CAM_FAR)
-        # print(view_matrix, projection_matrix)
-
-        # Get depth values using the OpenGL renderer
-        _w, _h, rgb, depth, seg = p.getCameraImage(self.CAM_WIDTH, self.CAM_HEIGHT, view_matrix, projection_matrix,
-                                                   shadow=True)
-        return rgb, depth, seg
-
     def read_debug_parameter(self):
         # read the value of task parameter
         x = p.readUserDebugParameter(self.xin)
@@ -295,7 +254,7 @@ class ClutteredPushGrasp:
         self.move_away_arm()
         self.open_gripper()
         # TODO: Check if object is outside the environment
-        rgb, depth, seg = self.update_camera()
+        rgb, depth, seg = self.camera.shot()
         depth_changed = self.check_depth_change(depth)
         if action_type == 'grasp' and not grasp_success:
             reward += self.GRASP_FAIL_REWARD
@@ -328,7 +287,7 @@ class ClutteredPushGrasp:
         self.reset_robot()
         self.reset_obj_state()
         self.move_away_arm()
-        rgb, depth, seg = self.update_camera()
+        rgb, depth, seg = self.camera.shot()
         self.prev_observation = (rgb, depth, seg)
         self.reset_robot()
         self.successful_obj_ids = []
