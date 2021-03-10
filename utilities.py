@@ -231,8 +231,6 @@ class Camera:
         self.tran_pix_world = np.linalg.inv(_projection_matrix @ _view_matrix)
 
     def rgbd_2_world(self, w, h, d):
-        aspect = self.width / self.height
-
         x = (2 * w - self.width) / self.width
         y = -(2 * h - self.height) / self.height
         z = 2 * d - 1
@@ -248,3 +246,19 @@ class Camera:
                                                    self.view_matrix, self.projection_matrix,
                                                    )
         return rgb, depth, seg
+
+    def rgbd_2_world_batch(self, depth):
+        x = (2 * np.arange(0, self.width) - self.width) / self.width
+        x = np.repeat(x[None, :], self.height, axis=0)
+        y = -(2 * np.arange(0, self.height) - self.height) / self.height
+        y = np.repeat(y[:, None], self.width, axis=1)
+        z = 2 * depth - 1
+
+        pix_pos = np.array([x.flatten(), y.flatten(), z.flatten(), np.ones_like(z.flatten())]).T
+        position = self.tran_pix_world @ pix_pos.T
+        position = position.T
+        # print(position)
+
+        position[:, :] /= position[:, 3:4]
+
+        return position[:, :3].reshape(*x.shape, -1)
