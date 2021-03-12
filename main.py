@@ -42,7 +42,7 @@ def user_control_demo():
     )
     camera = Camera((0, -0.5, 1.5), 0.1, 5, (320, 320), 40)
 
-    env = ClutteredPushGrasp(ycb_models, camera, vis=True, num_objs=5, gripper_type='85')
+    env = ClutteredPushGrasp(ycb_models, camera, vis=True, num_objs=0, gripper_type='85')
     p.resetDebugVisualizerCamera(2.0, -270., -60., (0., 0., 0.))
     p.configureDebugVisualizer(p.COV_ENABLE_SHADOWS, 1)  # Shadows on/off
     p.addUserDebugLine([0, -0.5, 0], [0, -0.5, 1.1], [0, 1, 0])

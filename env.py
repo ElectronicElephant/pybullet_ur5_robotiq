@@ -45,16 +45,8 @@ class ClutteredPushGrasp:
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
         p.setGravity(0, 0, -10)
         self.planeID = p.loadURDF("plane.urdf")
-        self.tablaID = p.loadURDF("./urdf/objects/table.urdf",
-                                  [0.0, -0.5, 0.8],
-                                  p.getQuaternionFromEuler([0, 0, 0]),
-                                  useFixedBase=True)
-        self.UR5StandID = p.loadURDF("./urdf/objects/ur5_stand.urdf",
-                                     [-0.7, -0.36, 0.0],
-                                     p.getQuaternionFromEuler([0, 0, 0]),
-                                     useFixedBase=True)
         self.robotID = p.loadURDF("./urdf/ur5_robotiq_%s.urdf" % gripper_type,
-                                  [0, 0, 0.0],  # StartPosition
+                                  [0, 0.5, -0.8],  # StartPosition
                                   p.getQuaternionFromEuler([0, 0, 0]),  # StartOrientation
                                   useFixedBase=True,
                                   flags=p.URDF_USE_INERTIA_FROM_FILE)
@@ -84,9 +76,9 @@ class ClutteredPushGrasp:
 
         # custom sliders to tune parameters (name of the parameter,range,initial value)
         # Task space (Cartesian space)
-        self.xin = p.addUserDebugParameter("x", -0.224, 0.224, 0.11)
-        self.yin = p.addUserDebugParameter("y", -0.724, -0.276, -0.49)
-        self.zin = p.addUserDebugParameter("z", 1.0, 1.3, 1.29)
+        self.xin = p.addUserDebugParameter("x", -0.224, 0.224, 0)
+        self.yin = p.addUserDebugParameter("y", -0.224, 0.224, 0)
+        self.zin = p.addUserDebugParameter("z", 0, 1., 0.5)
         self.rollId = p.addUserDebugParameter("roll", -3.14, 3.14, 0)  # -1.57 yaw
         self.pitchId = p.addUserDebugParameter("pitch", -3.14, 3.14, np.pi/2)
         self.yawId = p.addUserDebugParameter("yaw", -np.pi/2, np.pi/2, 0)  # -3.14 pitch
@@ -95,10 +87,17 @@ class ClutteredPushGrasp:
         # Setup some Limit
         self.gripper_open_limit = (0.0, 0.085)
         self.ee_position_limit = ((-0.224, 0.224),
-                                  (-0.724, -0.276),
-                                  (1.0, 1.3))
+                                  (-0.224, 0.224),
+                                  (0, 1))
         # Observation buffer
         self.prev_observation = tuple()
+
+        self.boxID = p.loadURDF("./urdf/skew-box-button.urdf",
+                                [0.0, 0.0, 0.0],
+                                # p.getQuaternionFromEuler([0, 1.5706453, 0]),
+                                p.getQuaternionFromEuler([0, 0, 0]),
+                                useFixedBase=True)
+
 
     def step_simulation(self):
         """
