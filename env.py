@@ -58,15 +58,13 @@ class ClutteredPushGrasp:
                                childFramePosition=[0, 0, 0])
         p.changeConstraint(c, gearRatio=-1, erp=0.1, maxForce=50)
 
-        self.reset_robot()  # Then, move back
-
         # custom sliders to tune parameters (name of the parameter,range,initial value)
         self.xin = p.addUserDebugParameter("x", -0.224, 0.224, 0)
         self.yin = p.addUserDebugParameter("y", -0.224, 0.224, 0)
         self.zin = p.addUserDebugParameter("z", 0, 1., 0.5)
-        self.rollId = p.addUserDebugParameter("roll", -3.14, 3.14, 0)  # -1.57 yaw
-        self.pitchId = p.addUserDebugParameter("pitch", -3.14, 3.14, np.pi/2)
-        self.yawId = p.addUserDebugParameter("yaw", -np.pi/2, np.pi/2, 0)  # -3.14 pitch
+        self.rollId = p.addUserDebugParameter("roll", -3.14, 3.14, 0)
+        self.pitchId = p.addUserDebugParameter("pitch", -3.14, 3.14, np.pi)
+        self.yawId = p.addUserDebugParameter("yaw", -np.pi/2, np.pi/2, np.pi/2)
         self.gripper_opening_length_control = p.addUserDebugParameter("gripper_opening_length", 0, 0.04, 0.04)
 
         self.boxID = p.loadURDF("./urdf/skew-box-button.urdf",
@@ -76,10 +74,12 @@ class ClutteredPushGrasp:
                                 useFixedBase=True,
                                 flags=p.URDF_MERGE_FIXED_LINKS | p.URDF_USE_SELF_COLLISION)
 
-        p.setJointMotorControl2(self.boxID, 0, p.POSITION_CONTROL, force=1)
-        p.setJointMotorControl2(self.boxID, 1, p.VELOCITY_CONTROL, force=0)
-
         self.print_debug_info()
+
+        # For calculating the reward
+        self.box_opened = False
+        self.btn_pressed = False
+        self.box_closed = False
 
     def print_debug_info(self):
         jointInfo = namedtuple("jointInfo",
@@ -161,12 +161,30 @@ class ClutteredPushGrasp:
         # fingers, [0, 0.04]
         for i in [9, 10]:
             p.setJointMotorControl2(self.panda, i, p.POSITION_CONTROL, gripper_opening_length, force=20)
-        self.step_simulation()
+        for _ in range(120):  # Wait for a few steps
+            self.step_simulation()
 
-        reward = 0.
-        done = False
-        info = {}
+        reward = self.update_reward()
+        done = True if reward == 1 else False
+        info = dict(box_opened=self.box_opened, btn_pressed=self.btn_pressed, box_closed=self.box_closed)
         return self.get_observation(), reward, done, info
+
+    def update_reward(self):
+        reward = 0
+        if not self.box_opened:
+            if p.getJointState(self.boxID, 1)[0] > 1.9:
+                self.box_opened = True
+                print('Box opened!')
+        elif not self.btn_pressed:
+            if p.getJointState(self.boxID, 0)[0] < - 0.02:
+                self.btn_pressed = True
+                print('Btn pressed!')
+        else:
+            if p.getJointState(self.boxID, 1)[0] < 0.1:
+                print('Box closed!')
+                self.box_closed = True
+                reward = 1
+        return reward
 
     def get_joint_info(self):
         positions = []
@@ -185,7 +203,8 @@ class ClutteredPushGrasp:
         else:
             assert self.camera is None
         pos, vel = self.get_joint_info()
-        obs.update(dict(pos=pos, vel=vel))
+        ee_pos = p.getLinkState(self.panda, self.pandaEndEffectorIndex)[0]
+        obs.update(dict(joint_pos=pos, joint_vel=vel, ee_pos=ee_pos))
 
         return obs
 
@@ -209,7 +228,8 @@ class ClutteredPushGrasp:
             self.step_simulation()
 
     def reset_box(self):
-        pass
+        p.setJointMotorControl2(self.boxID, 0, p.POSITION_CONTROL, force=1)
+        p.setJointMotorControl2(self.boxID, 1, p.VELOCITY_CONTROL, force=0)
 
     def reset(self):
         self.reset_robot()
