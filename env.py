@@ -17,33 +17,14 @@ class FailToReachTargetError(RuntimeError):
 
 
 class ClutteredPushGrasp:
-    OBJECT_INIT_HEIGHT = 1.05
-    GRIPPER_MOVING_HEIGHT = 1.15
-    GRIPPER_GRASPED_LIFT_HEIGHT = 1.2
-    GRASP_POINT_OFFSET_Z = 1.231 - 1.1
-    PUSH_POINT_OFFSET_Z = 0.0
-    PUSH_BACK_DIST = 0.02
-    PUSH_FORWARD_DIST = 0.07
-
-    GRASP_SUCCESS_REWARD = 1
-    GRASP_FAIL_REWARD = -0.3
-    PUSH_SUCCESS_REWARD = 0.5
-    PUSH_FAIL_REWARD = -0.3
-    DEPTH_CHANGE_THRESHOLD = 0.01
-    DEPTH_CHANGE_COUNTER_THRESHOLD = 1000
 
     SIMULATION_STEP_DELAY = 1 / 240.
 
-    def __init__(self, models: Models, camera: Camera, vis=False, num_objs=3, gripper_type='85') -> None:
+    def __init__(self, models: Models, camera=None, vis=False) -> None:
         self.vis = vis
         if self.vis:
             self.p_bar = tqdm(ncols=0, disable=False)
-        self.num_objs = num_objs
         self.camera = camera
-
-        if gripper_type not in ('85', '140'):
-            raise NotImplementedError('Gripper %s not implemented.' % gripper_type)
-        self.gripper_type = gripper_type
 
         # define environment
         self.physicsClient = p.connect(p.GUI if self.vis else p.DIRECT)
@@ -63,7 +44,6 @@ class ClutteredPushGrasp:
         self.jr = [7] * self.pandaNumDofs
         # restposes for null space
         self.rp = [0.98, 0.458, 0.31, -2.24, -0.30, 2.66, 2.32, 0.02, 0.02]
-
         self.panda = p.loadURDF("./urdf/panda.urdf", (0, 0.5, 0),
                                 p.getQuaternionFromEuler((0, 0, math.pi)),
                                 useFixedBase=True, flags=p.URDF_ENABLE_CACHED_GRAPHICS_SHAPES)
@@ -96,10 +76,15 @@ class ClutteredPushGrasp:
                                 useFixedBase=True,
                                 flags=p.URDF_MERGE_FIXED_LINKS | p.URDF_USE_SELF_COLLISION)
 
+        p.setJointMotorControl2(self.boxID, 0, p.POSITION_CONTROL, force=1)
+        p.setJointMotorControl2(self.boxID, 1, p.VELOCITY_CONTROL, force=0)
+
+        self.print_debug_info()
+
+    def print_debug_info(self):
         jointInfo = namedtuple("jointInfo",
                                ["id", "name", "type", "lowerLimit", "upperLimit", "maxForce", "maxVelocity",
                                 "controllable"])
-        joints = AttrDict()
         for i in range(p.getNumJoints(self.panda)):
             info = p.getJointInfo(self.panda, i)
             jointID = info[0]
@@ -129,8 +114,6 @@ class ClutteredPushGrasp:
                              jointUpperLimit, jointMaxForce, jointMaxVelocity, controllable)
             print(p.getDynamicsInfo(self.boxID, i))
             print(info)
-        p.setJointMotorControl2(self.boxID, 0, p.POSITION_CONTROL, force=1)
-        p.setJointMotorControl2(self.boxID, 1, p.VELOCITY_CONTROL, force=0)
 
     def step_simulation(self):
         """
@@ -153,30 +136,58 @@ class ClutteredPushGrasp:
 
         return x, y, z, roll, pitch, yaw, gripper_opening_length
 
-    def step(self, position: tuple, angle: float, action_type: str):
+    def step(self, action, control_method='joint'):
         """
-        position [x y z]: The axis in real-world coordinate
-        angle: float,   for grasp, it should be in [-pi/2, pi/2)
-                        for push,  it should be in [0, 2pi)
+        action: (x, y, z, roll, pitch, yaw, gripper_opening_length) for End Effector Position Control
+                (a1, a2, a3, a4, a5, a6, a7, gripper_opening_length) for Joint Position Control
+        control_method:  'end' for end effector position control
+                         'joint' for joint position control
         """
-        x, y, z, roll, pitch, yaw, gripper_opening_length = self.read_debug_parameter()
-        pos = (x, y, z)
-        orn = p.getQuaternionFromEuler((roll, pitch, yaw))
-        jointPoses = p.calculateInverseKinematics(self.panda, self.pandaEndEffectorIndex, pos, orn, self.ll, self.ul,
-                                                  self.jr, self.rp, maxNumIterations=20)
+        assert control_method in ('joint', 'end')
+        if control_method == 'end':
+            x, y, z, roll, pitch, yaw, gripper_opening_length = action
+            pos = (x, y, z)
+            orn = p.getQuaternionFromEuler((roll, pitch, yaw))
+            joint_poses = p.calculateInverseKinematics(self.panda, self.pandaEndEffectorIndex, pos, orn, self.ll,
+                                                       self.ul, self.jr, self.rp, maxNumIterations=20)
+        else:  # joint
+            assert len(action) == 8
+            joint_poses = action[:7]
+            gripper_opening_length = action[7]
+
         # arm
         for i in range(self.pandaNumDofs):
-            p.setJointMotorControl2(self.panda, i, p.POSITION_CONTROL, jointPoses[i], force=5 * 240.)
+            p.setJointMotorControl2(self.panda, i, p.POSITION_CONTROL, joint_poses[i], force=5 * 240.)
         # fingers, [0, 0.04]
         for i in [9, 10]:
-            p.setJointMotorControl2(self.panda, i, p.POSITION_CONTROL, gripper_opening_length, force=100)
-        # rgb, depth, seg = self.camera.shot()
-        # observation = (rgb, depth, seg)
-        observation = None
-        reward = -100
+            p.setJointMotorControl2(self.panda, i, p.POSITION_CONTROL, gripper_opening_length, force=20)
+        self.step_simulation()
+
+        reward = 0.
         done = False
         info = {}
-        return observation, reward, done, info
+        return self.get_observation(), reward, done, info
+
+    def get_joint_info(self):
+        positions = []
+        velocities = []
+        for i in range(self.pandaNumDofs):
+            pos, vel, _, _ = p.getJointState(self.panda, i)
+            positions.append(pos)
+            velocities.append(vel)
+        return positions, velocities
+
+    def get_observation(self):
+        obs = dict()
+        if isinstance(self.camera, Camera):
+            rgb, depth, seg = self.camera.shot()
+            obs.update(dict(rgb=rgb, depth=depth, seg=seg))
+        else:
+            assert self.camera is None
+        pos, vel = self.get_joint_info()
+        obs.update(dict(pos=pos, vel=vel))
+
+        return obs
 
     def reset_robot(self):
 
@@ -203,8 +214,7 @@ class ClutteredPushGrasp:
     def reset(self):
         self.reset_robot()
         self.reset_box()
-        rgb, depth, seg = self.camera.shot()
-        return rgb, depth, seg
+        return self.get_observation()
 
     def close(self):
         p.disconnect(self.physicsClient)
