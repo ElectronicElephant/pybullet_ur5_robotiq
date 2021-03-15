@@ -143,7 +143,7 @@
         <parent link="base_link"/>
         <child link="door"/>
         <axis xyz="0 1 0"/>
-        <limit effort="0" lower="0" upper="2.5" velocity="0"/>
+        <limit effort="0" lower="0" upper="2" velocity="0"/>
     </joint>
 
     <link name="h1">
@@ -230,7 +230,7 @@
         <visual>
             <origin xyz="0 0 0" rpy="0 0 0"/>
             <geometry>
-                <cylinder radius="0.05" length="0.05"/>
+                <cylinder radius="0.05" length="0.03"/>
             </geometry>
             <material name="Red">
                 <color rgba="1.0 0 0 1.0"/>
@@ -244,7 +244,7 @@
         </collision>
     </link>
     <joint name="button_base" type="prismatic">
-        <origin xyz="0 0 0.06" rpy="0 0 0"/>
+        <origin xyz="0 0 0.07" rpy="0 0 0"/>
         <parent link="base_link"/>
         <child link="button"/>
         <axis xyz="0 0 1"/>
