@@ -6,7 +6,7 @@ import numpy as np
 import pybullet as p
 import pybullet_data
 
-from utilities import Models, setup_sisbot, setup_sisbot_force, Camera
+from utilities import Models, Camera
 from collections import namedtuple
 from attrdict import AttrDict
 from tqdm import tqdm
@@ -129,7 +129,7 @@ class ClutteredPushGrasp:
                              jointUpperLimit, jointMaxForce, jointMaxVelocity, controllable)
             print(p.getDynamicsInfo(self.boxID, i))
             print(info)
-        p.setJointMotorControl2(self.boxID, 0, p.POSITION_CONTROL, force=10)
+        p.setJointMotorControl2(self.boxID, 0, p.POSITION_CONTROL, force=1)
         p.setJointMotorControl2(self.boxID, 1, p.VELOCITY_CONTROL, force=0)
 
     def step_simulation(self):
