@@ -61,16 +61,13 @@ class YCBModels(Models):
 
 
 class Camera:
-    def __init__(self, cam_pos, near, far, size, fov):
-        self.x, self.y, self.z = cam_pos
+    def __init__(self, cam_pos, cam_tar, cam_up_vector, near, far, size, fov):
         self.width, self.height = size
         self.near, self.far = near, far
         self.fov = fov
 
         aspect = self.width / self.height
-        self.view_matrix = p.computeViewMatrix([self.x, self.y, self.z],
-                                               [self.x - 1e-5, self.y, 0],
-                                               [-1, 0, 0])
+        self.view_matrix = p.computeViewMatrix(cam_pos, cam_tar, cam_up_vector)
         self.projection_matrix = p.computeProjectionMatrixFOV(self.fov, aspect, self.near, self.far)
 
         _view_matrix = np.array(self.view_matrix).reshape((4, 4), order='F')

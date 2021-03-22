@@ -13,8 +13,11 @@ def user_control_demo():
     ycb_models = YCBModels(
         os.path.join('./data/ycb', '**', 'textured-decmp.obj'),
     )
-    camera = Camera((0, -0.5, 1.5), 0.1, 5, (320, 320), 40)
-    camera = None
+    camera = Camera((1, 1, 1),
+                    (0, 0, 0),
+                    (0, 0, 1),
+                    0.1, 5, (320, 320), 40)
+    # camera = None
 
     env = ClutteredPushGrasp(ycb_models, camera, vis=True)
 
