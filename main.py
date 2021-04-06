@@ -5,8 +5,10 @@ import pybullet as p
 
 from tqdm import tqdm
 from env import ClutteredPushGrasp
+from robot import Panda
 from utilities import YCBModels, Camera
 import time
+import math
 
 
 def user_control_demo():
@@ -18,8 +20,8 @@ def user_control_demo():
                     (0, 0, 1),
                     0.1, 5, (320, 320), 40)
     # camera = None
-
-    env = ClutteredPushGrasp(ycb_models, camera, vis=True)
+    robot = Panda((0, 0.5, 0), (0, 0, math.pi))
+    env = ClutteredPushGrasp(robot, ycb_models, camera, vis=True)
 
     env.reset()
     # env.SIMULATION_STEP_DELAY = 0
@@ -30,4 +32,3 @@ def user_control_demo():
 
 if __name__ == '__main__':
     user_control_demo()
-    # heuristic_demo()
