@@ -210,3 +210,14 @@ class UR5Robotiq140(UR5Robotiq85):
         self.gripper_range = [0, 0.085]
         # TODO: It's weird to use the same range and the same formula to calculate open_angle as Robotiq85.
 
+    def __post_load__(self):
+        # To control the gripper
+        mimic_parent_name = 'finger_joint'
+        mimic_children_names = {"right_outer_knuckle_joint": -1,
+                                "left_inner_knuckle_joint": -1,
+                                "right_inner_knuckle_joint": -1,
+                                "left_inner_finger_joint": 1,
+                                "right_inner_finger_joint": 1}
+        self.mimic_parent_id = [joint.id for joint in self.joints if joint.name == mimic_parent_name][0]
+        self.mimic_child_multiplier = {joint.id: mimic_children_names[joint.name] for joint in self.joints if joint.name in mimic_children_names}
+
