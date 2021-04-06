@@ -43,7 +43,7 @@ class ClutteredPushGrasp:
         self.rollId = p.addUserDebugParameter("roll", -3.14, 3.14, 0)
         self.pitchId = p.addUserDebugParameter("pitch", -3.14, 3.14, np.pi)
         self.yawId = p.addUserDebugParameter("yaw", -np.pi/2, np.pi/2, np.pi/2)
-        self.gripper_opening_length_control = p.addUserDebugParameter("gripper_opening_length", 0, 0.04, 0.04)
+        self.gripper_opening_length_control = p.addUserDebugParameter("gripper_opening_length", 0, 0.085, 0.04)
 
         self.boxID = p.loadURDF("./urdf/skew-box-button.urdf",
                                 [0.0, 0.0, 0.0],
@@ -120,9 +120,7 @@ class ClutteredPushGrasp:
             obs.update(dict(rgb=rgb, depth=depth, seg=seg))
         else:
             assert self.camera is None
-        pos, vel = self.robot.get_joint_info()
-        ee_pos = p.getLinkState(self.robot.id, self.robot.eef_id)[0]
-        obs.update(dict(joint_pos=pos, joint_vel=vel, ee_pos=ee_pos))
+        obs.update(self.robot.get_joint_obs())
 
         return obs
 

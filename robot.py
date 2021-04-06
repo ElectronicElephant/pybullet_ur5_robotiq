@@ -1,3 +1,4 @@
+from numpy import multiply
 import pybullet as p
 import math
 from collections import namedtuple
@@ -39,6 +40,11 @@ class RobotBase(object):
     def load(self):
         self.__init_robot__()
         self.__parse_joint_info__()
+        self.__post_load__()
+        print(self.joints)
+
+    def step_simulation(self):
+        raise RuntimeError('`step_simulation` method of RobotBase Class should be hooked by the environment.')
 
     def __parse_joint_info__(self):
         numJoints = p.getNumJoints(self.id)
@@ -60,6 +66,7 @@ class RobotBase(object):
             controllable = (jointType != p.JOINT_FIXED)
             if controllable:
                 self.arm_controlable_joints.append(jointID)
+                p.setJointMotorControl2(self.id, jointID, p.VELOCITY_CONTROL, targetVelocity=0, force=0)
             info = jointInfo(jointID,jointName,jointType,jointDamping,jointFriction,jointLowerLimit,
                             jointUpperLimit,jointMaxForce,jointMaxVelocity,controllable)
             self.joints.append(info)
@@ -73,6 +80,9 @@ class RobotBase(object):
 
     def __init_robot__(self):
         raise NotImplementedError
+    
+    def __post_load__(self):
+        pass
 
     def reset(self):
         self.reset_arm()
@@ -105,28 +115,28 @@ class RobotBase(object):
             pos = (x, y, z)
             orn = p.getQuaternionFromEuler((roll, pitch, yaw))
             joint_poses = p.calculateInverseKinematics(self.id, self.eef_id, pos, orn,
-                                                       self.arm_lower_limits, self.arm_upper_limits, self.arm_joint_ranges,
-                                                       self.arm_rest_poses, maxNumIterations=20)
+                                                       self.arm_lower_limits, self.arm_upper_limits, self.arm_joint_ranges, self.arm_rest_poses,
+                                                       maxNumIterations=20)
         elif control_method == 'joint':
             assert len(action) == self.arm_num_dofs
             joint_poses = action
         # arm
-        for i in range(self.arm_num_dofs):
-            p.setJointMotorControl2(self.id, i, p.POSITION_CONTROL, joint_poses[i], force=self.joints[i].maxForce, maxVelocity=self.joints[i].maxVelocity)
+        for i, joint_id in enumerate(self.arm_controlable_joints):
+            p.setJointMotorControl2(self.id, joint_id, p.POSITION_CONTROL, joint_poses[i],
+                                    force=self.joints[joint_id].maxForce, maxVelocity=self.joints[joint_id].maxVelocity)
 
     def move_gripper(self, open_length):
         raise NotImplementedError
 
-    def get_joint_info(self):
+    def get_joint_obs(self):
         positions = []
         velocities = []
         for joint_id in self.arm_controlable_joints:
             pos, vel, _, _ = p.getJointState(self.id, joint_id)
             positions.append(pos)
             velocities.append(vel)
-        return positions, velocities
-
-
+        ee_pos = p.getLinkState(self.id, self.eef_id)[0]
+        return dict(positions=positions, velocities=velocities, ee_pos=ee_pos)
 
 
 class Panda(RobotBase):
@@ -154,3 +164,36 @@ class Panda(RobotBase):
         assert self.gripper_range[0] <= open_length <= self.gripper_range[1]
         for i in [9, 10]:
             p.setJointMotorControl2(self.id, i, p.POSITION_CONTROL, open_length, force=20)
+
+
+class UR5Robotiq85(RobotBase):
+    def __init_robot__(self):
+        self.eef_id = 7
+        self.arm_num_dofs = 6
+        self.arm_rest_poses = [-1.5690622952052096, -1.5446774605904932, 1.343946009733127, -1.3708613585093699,
+                               -1.5707970583733368, 0.0009377758247187636]
+        self.id = p.loadURDF("./urdf/ur5_robotiq_85.urdf", self.base_pos, self.base_ori,
+                             useFixedBase=True, flags=p.URDF_ENABLE_CACHED_GRAPHICS_SHAPES)
+        self.gripper_range = [0, 0.085]
+    
+    def __post_load__(self):
+        # To control the gripper
+        mimic_parent_name = 'finger_joint'
+        mimic_children_names = {'right_outer_knuckle_joint': 1,
+                                'left_inner_knuckle_joint': 1,
+                                'right_inner_knuckle_joint': 1,
+                                'left_inner_finger_joint': -1,
+                                'right_inner_finger_joint': -1}
+        self.mimic_parent_id = [joint.id for joint in self.joints if joint.name == mimic_parent_name][0]
+        self.mimic_child_multiplier = {joint.id: mimic_children_names[joint.name] for joint in self.joints if joint.name in mimic_children_names}
+
+    def move_gripper(self, open_length):
+        # open_length = np.clip(open_length, *self.gripper_range)
+        open_angle = 0.715 - math.asin((open_length - 0.010) / 0.1143)  # angle calculation
+        # Control the mimic gripper joint(s)
+        p.setJointMotorControl2(self.id, self.mimic_parent_id, p.POSITION_CONTROL, targetPosition=open_angle,
+                                force=self.joints[self.mimic_parent_id].maxForce, maxVelocity=self.joints[self.mimic_parent_id].maxVelocity)
+        # move child joints
+        for joint_id, multiplier in self.mimic_child_multiplier.items():
+            p.setJointMotorControl2(self.id, joint_id, p.POSITION_CONTROL, targetPosition=open_angle * multiplier,
+                                    force=self.joints[joint_id].maxForce, maxVelocity=self.joints[joint_id].maxVelocity)
