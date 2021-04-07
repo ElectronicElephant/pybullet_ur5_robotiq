@@ -5,7 +5,7 @@ import pybullet as p
 
 from tqdm import tqdm
 from env import ClutteredPushGrasp
-from robot import Panda, UR5Robotiq85
+from robot import Panda, UR5Robotiq85, UR5Robotiq140
 from utilities import YCBModels, Camera
 import time
 import math
@@ -20,7 +20,7 @@ def user_control_demo():
                     (0, 0, 1),
                     0.1, 5, (320, 320), 40)
     camera = None
-    robot = Panda((0, 0.5, 0), (0, 0, math.pi))
+    # robot = Panda((0, 0.5, 0), (0, 0, math.pi))
     robot = UR5Robotiq85((0, 0.5, 0), (0, 0, 0))
     env = ClutteredPushGrasp(robot, ycb_models, camera, vis=True)
 
