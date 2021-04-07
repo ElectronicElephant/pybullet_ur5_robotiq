@@ -21,18 +21,19 @@ class RobotBase(object):
             eef_id: Int, the ID of the End-Effector
             arm_num_dofs: Int, the number of DoFs of the arm
                 i.e., the IK for the EE will consider the first `arm_num_dofs` controllable (non-Fixed) joints
+            joints: List, a list of joint info
+            controllable_joints: List of Ints, IDs for all controllable joints
+            arm_controllable_joints: List of Ints, IDs for all controllable joints on the arm (that is, the first `arm_num_dofs` of controllable joints)
 
             ---
             For null-space IK
             ---
-            arm_lower_limits: List, the lower limits for all controlable joints on the arm
+            arm_lower_limits: List, the lower limits for all controllable joints on the arm
             arm_upper_limits: List
             arm_joint_ranges: List
-            arm_rest_poses: List, the rest position for all controlable joints on the arm
+            arm_rest_poses: List, the rest position for all controllable joints on the arm
 
             gripper_range: List[Min, Max]
-
-
         """
         self.base_pos = pos
         self.base_ori = p.getQuaternionFromEuler(ori)
@@ -51,7 +52,7 @@ class RobotBase(object):
         jointInfo = namedtuple('jointInfo', 
             ['id','name','type','damping','friction','lowerLimit','upperLimit','maxForce','maxVelocity','controllable'])
         self.joints = []
-        self.arm_controlable_joints = []
+        self.controllable_joints = []
         for i in range(numJoints):
             info = p.getJointInfo(self.id, i)
             jointID = info[0]
@@ -65,14 +66,14 @@ class RobotBase(object):
             jointMaxVelocity = info[11]
             controllable = (jointType != p.JOINT_FIXED)
             if controllable:
-                self.arm_controlable_joints.append(jointID)
+                self.controllable_joints.append(jointID)
                 p.setJointMotorControl2(self.id, jointID, p.VELOCITY_CONTROL, targetVelocity=0, force=0)
             info = jointInfo(jointID,jointName,jointType,jointDamping,jointFriction,jointLowerLimit,
                             jointUpperLimit,jointMaxForce,jointMaxVelocity,controllable)
             self.joints.append(info)
 
-        assert len(self.arm_controlable_joints) >= self.arm_num_dofs
-        self.arm_controlable_joints = self.arm_controlable_joints[:self.arm_num_dofs]
+        assert len(self.controllable_joints) >= self.arm_num_dofs
+        self.arm_controllable_joints = self.controllable_joints[:self.arm_num_dofs]
 
         self.arm_lower_limits = [info.lowerLimit for info in self.joints if info.controllable][:self.arm_num_dofs]
         self.arm_upper_limits = [info.upperLimit for info in self.joints if info.controllable][:self.arm_num_dofs]
@@ -92,7 +93,7 @@ class RobotBase(object):
         """
         reset to rest poses
         """
-        for rest_pose, joint_id in zip(self.arm_rest_poses, self.arm_controlable_joints):
+        for rest_pose, joint_id in zip(self.arm_rest_poses, self.arm_controllable_joints):
             p.resetJointState(self.id, joint_id, rest_pose)
 
         # Wait for a few steps
@@ -121,7 +122,7 @@ class RobotBase(object):
             assert len(action) == self.arm_num_dofs
             joint_poses = action
         # arm
-        for i, joint_id in enumerate(self.arm_controlable_joints):
+        for i, joint_id in enumerate(self.arm_controllable_joints):
             p.setJointMotorControl2(self.id, joint_id, p.POSITION_CONTROL, joint_poses[i],
                                     force=self.joints[joint_id].maxForce, maxVelocity=self.joints[joint_id].maxVelocity)
 
@@ -131,7 +132,7 @@ class RobotBase(object):
     def get_joint_obs(self):
         positions = []
         velocities = []
-        for joint_id in self.arm_controlable_joints:
+        for joint_id in self.controllable_joints:
             pos, vel, _, _ = p.getJointState(self.id, joint_id)
             positions.append(pos)
             velocities.append(vel)
