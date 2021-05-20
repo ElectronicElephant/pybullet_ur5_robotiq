@@ -4,6 +4,8 @@
 
 This repo is under active development. Issues / PRs are welcomed.
 
+For latest version, please check the `robotflow` branch. A new control method is implemented, aimed at solving the problem of the gripper's visually breaking when contacting with objects.
+
 ![User Control Demo](example.png)
 
 ## Highlights
