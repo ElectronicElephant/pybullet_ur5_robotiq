@@ -92,6 +92,7 @@ class Camera:
         return rgb, depth, seg
 
     def rgbd_2_world_batch(self, depth):
+        # reference: https://stackoverflow.com/a/62247245
         x = (2 * np.arange(0, self.width) - self.width) / self.width
         x = np.repeat(x[None, :], self.height, axis=0)
         y = -(2 * np.arange(0, self.height) - self.height) / self.height
