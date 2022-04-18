@@ -4,7 +4,7 @@
 
 This repo is under active development. Issues / PRs are welcomed.
 
-![User Control Demo](example.png)
+![User Control Demo](https://raw.githubusercontent.com/ElectronicElephant/pybullet_ur5_robotiq/main/example.png)
 
 ## Highlights
 
